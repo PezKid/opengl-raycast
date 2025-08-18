@@ -5,17 +5,21 @@
 // Vertex shader source code
 const char* vertexShaderSource = "#version 330 core\n"
 "layout (location = 0) in vec3 aPos;\n"
+"layout (location = 1) in vec3 aColor;\n"
+"out vec3 vertexColor;\n"
 "void main()\n"
 "{\n"
-"   gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);\n"
+"   gl_Position = vec4(aPos, 1.0);\n"
+"   vertexColor = aColor;\n"
 "}\0";
 
 // Fragment shader source code
 const char* fragmentShaderSource = "#version 330 core\n"
+"in vec3 vertexColor;\n"
 "out vec4 FragColor;\n"
 "void main()\n"
 "{\n"
-"   FragColor = vec4(1.0f, 1.0f, 1.0f, 1.0f);\n"
+"   FragColor = vec4(vertexColor, 1.0f);\n"
 "}\n\0";
 
 const int windowWidth = 1024;
@@ -33,57 +37,95 @@ float pixelToScreenY(int y) // y pixel value to screen value
     return 2.0f * static_cast<float>(y) / windowHeight - 1.0f;
 }
 
+std::vector<float> generateSquare(float lX, float rX, float bY, float tY, std::vector<float> color)
+{
+    std::vector<float> mapVertices;
+    // Bottom left triangle
+
+    // Bottom left vertex
+    mapVertices.push_back(lX);
+    mapVertices.push_back(bY);
+    mapVertices.push_back(0.0f);
+
+    mapVertices.insert(mapVertices.end(), color.begin(), color.end());
+
+    // Bottom right vertex
+    mapVertices.push_back(rX);
+    mapVertices.push_back(bY);
+    mapVertices.push_back(0.0f);
+
+    mapVertices.insert(mapVertices.end(), color.begin(), color.end());
+
+    // Top left vertex
+    mapVertices.push_back(lX);
+    mapVertices.push_back(tY);
+    mapVertices.push_back(0.0f);
+
+    mapVertices.insert(mapVertices.end(), color.begin(), color.end());
+
+    // Top right triangle
+
+    // Top left vertex
+    mapVertices.push_back(lX);
+    mapVertices.push_back(tY);
+    mapVertices.push_back(0.0f);
+
+    mapVertices.insert(mapVertices.end(), color.begin(), color.end());
+
+    // Top right vertex
+    mapVertices.push_back(rX);
+    mapVertices.push_back(tY);
+    mapVertices.push_back(0.0f);
+
+    mapVertices.insert(mapVertices.end(), color.begin(), color.end());
+
+    // Bottom right vertex
+    mapVertices.push_back(rX);
+    mapVertices.push_back(bY);
+    mapVertices.push_back(0.0f);
+
+    mapVertices.insert(mapVertices.end(), color.begin(), color.end());
+
+    return mapVertices;
+}
+
 std::vector<float> generateMapVertices(const int* mapArray)
 {
     std::vector<float> mapVertices;
-    int offset = 1;
 
     for (int i = 0; i < mp; i++) {
         for (int j = 0; j < mp; j++) {
             int mapAt = mapArray[(mp - 1 - i) * mp + j];
-            std::cout << mapAt;
-            if (mapAt == 1) { // Draw wall square
-                float lX = pixelToScreenX(j * sq + offset);
-                float rX = pixelToScreenX((j + 1) * sq - offset);
-                float bY = pixelToScreenY(i * sq + offset);
-                float tY = pixelToScreenY((i + 1) * sq - offset);
 
-                // Bottom left triangle
-
-                // Bottom left vertex
-                mapVertices.push_back(lX);
-                mapVertices.push_back(bY);
-                mapVertices.push_back(0.0f);
-
-                // Bottom right vertex
-                mapVertices.push_back(rX);
-                mapVertices.push_back(bY);
-                mapVertices.push_back(0.0f);
-
-                // Top left vertex
-                mapVertices.push_back(lX);
-                mapVertices.push_back(tY);
-                mapVertices.push_back(0.0f);
-
-                // Top right triangle
-
-                // Top left vertex
-                mapVertices.push_back(lX);
-                mapVertices.push_back(tY);
-                mapVertices.push_back(0.0f);
-
-                // Top right vertex
-                mapVertices.push_back(rX);
-                mapVertices.push_back(tY);
-                mapVertices.push_back(0.0f);
-
-                // Bottom right vertex
-                mapVertices.push_back(rX);
-                mapVertices.push_back(bY);
-                mapVertices.push_back(0.0f);
+            std::vector<float> color;
+            if (mapAt == 1) {
+                color.push_back(1.0f);
+                color.push_back(1.0f);
+                color.push_back(1.0f);
+            } else if (mapAt == 2) {
+                color.push_back(1.0f);
+                color.push_back(0.0f);
+                color.push_back(0.0f);
+            } else if (mapAt == 3) {
+                color.push_back(0.0f);
+                color.push_back(0.0f);
+                color.push_back(1.0f);
+            } else {
+                color.push_back(0.0f);
+                color.push_back(0.0f);
+                color.push_back(0.0f);
             }
+
+            int offset = 1;
+            // Draw wall square
+            float lX = pixelToScreenX(j * sq + offset);
+            float rX = pixelToScreenX((j + 1) * sq - offset);
+            float bY = pixelToScreenY(i * sq + offset);
+            float tY = pixelToScreenY((i + 1) * sq - offset);
+
+            std::vector<float> squareVertices = generateSquare(lX, rX, bY, tY, color);
+            mapVertices.insert(mapVertices.end(), squareVertices.begin(), squareVertices.end());
         }
-        std::cout << std::endl;
     }
 
     return mapVertices;
@@ -104,11 +146,11 @@ int main()
     // Map coordinates
     const int mapArray[] = {
         1,1,1,1,1,1,1,1,
-        1,0,0,1,0,0,0,1,
-        1,0,1,1,0,0,0,1,
+        1,0,0,2,0,0,0,1,
+        1,0,2,2,0,0,0,1,
         1,0,0,0,0,0,0,1,
-        1,0,0,0,0,0,0,1,
-        1,0,0,0,0,1,0,1,
+        1,0,0,0,0,3,0,1,
+        1,0,0,0,0,3,0,1,
         1,0,0,0,0,0,0,1,
         1,1,1,1,1,1,1,1
     };
@@ -179,8 +221,14 @@ int main()
 
     // 1. Configure the Vertex Attribute so that OpenGL knows how to read the VBO
     // 2. Enable the Vertex Attribute so that OpenGL knows to use it
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), static_cast<void *>(nullptr));
+
+    // Position attribute (location 0)
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
+
+    // Color attribute (location 1)
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
 
     // Bind both the VBO and VAO to 0 so we don't accidentally modify them
     glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -199,6 +247,7 @@ int main()
     {
         glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
+
         // Tell OpenGL which shader program we want to use
         glUseProgram(shaderProgram);
         // Bind the VAO so OpenGL knows to use it
