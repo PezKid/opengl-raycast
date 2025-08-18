@@ -15,8 +15,79 @@ const char* fragmentShaderSource = "#version 330 core\n"
 "out vec4 FragColor;\n"
 "void main()\n"
 "{\n"
-"   FragColor = vec4(1.0f, 0.0f, 0.0f, 1.0f);\n"
+"   FragColor = vec4(1.0f, 1.0f, 1.0f, 1.0f);\n"
 "}\n\0";
+
+const int windowWidth = 1024;
+const int windowHeight = 512;
+const int sq = 64;
+const int mp = 8;
+
+float pixelToScreenX(int x) // x pixel value to screen value
+{
+    return 2.0f * static_cast<float>(x) / windowWidth - 1.0f;
+}
+
+float pixelToScreenY(int y) // y pixel value to screen value
+{
+    return 2.0f * static_cast<float>(y) / windowHeight - 1.0f;
+}
+
+std::vector<float> generateMapVertices(const int* mapArray)
+{
+    std::vector<float> mapVertices;
+    int offset = 1;
+
+    for (int i = 0; i < mp; i++) {
+        for (int j = 0; j < mp; j++) {
+            int mapAt = mapArray[(mp - 1 - i) * mp + j];
+            std::cout << mapAt;
+            if (mapAt == 1) { // Draw wall square
+                float lX = pixelToScreenX(j * sq + offset);
+                float rX = pixelToScreenX((j + 1) * sq - offset);
+                float bY = pixelToScreenY(i * sq + offset);
+                float tY = pixelToScreenY((i + 1) * sq - offset);
+
+                // Bottom left triangle
+
+                // Bottom left vertex
+                mapVertices.push_back(lX);
+                mapVertices.push_back(bY);
+                mapVertices.push_back(0.0f);
+
+                // Bottom right vertex
+                mapVertices.push_back(rX);
+                mapVertices.push_back(bY);
+                mapVertices.push_back(0.0f);
+
+                // Top left vertex
+                mapVertices.push_back(lX);
+                mapVertices.push_back(tY);
+                mapVertices.push_back(0.0f);
+
+                // Top right triangle
+
+                // Top left vertex
+                mapVertices.push_back(lX);
+                mapVertices.push_back(tY);
+                mapVertices.push_back(0.0f);
+
+                // Top right vertex
+                mapVertices.push_back(rX);
+                mapVertices.push_back(tY);
+                mapVertices.push_back(0.0f);
+
+                // Bottom right vertex
+                mapVertices.push_back(rX);
+                mapVertices.push_back(bY);
+                mapVertices.push_back(0.0f);
+            }
+        }
+        std::cout << std::endl;
+    }
+
+    return mapVertices;
+}
 
 int main()
 {
@@ -30,15 +101,22 @@ int main()
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); // CORE contains all the modern functions
 
 
-    // Coordinates of triangle vertices
-    GLfloat vertices[] = {
-        -0.5f, -0.5f, 0.0f,  // Bottom left
-         0.5f, -0.5f, 0.0f,  // Bottom right
-         0.0f,  0.5f, 0.0f   // Top center
+    // Map coordinates
+    const int mapArray[] = {
+        1,1,1,1,1,1,1,1,
+        1,0,0,1,0,0,0,1,
+        1,0,1,1,0,0,0,1,
+        1,0,0,0,0,0,0,1,
+        1,0,0,0,0,0,0,1,
+        1,0,0,0,0,1,0,1,
+        1,0,0,0,0,0,0,1,
+        1,1,1,1,1,1,1,1
     };
 
+    std::vector<float> mapVertices = generateMapVertices(mapArray);
+
     // Declare GLFW window with params (width, height, title, fullscreen y/n, and irrelevant)
-    GLFWwindow* window = glfwCreateWindow(1024, 512, "Raycast", nullptr, nullptr);
+    GLFWwindow* window = glfwCreateWindow(windowWidth, windowHeight, "Raycast", nullptr, nullptr);
     if (!window)
     {
         glfwTerminate();
@@ -51,7 +129,7 @@ int main()
     gladLoadGL();
 
     // Set viewport to the entire window, params ((botL), (topR))
-    glViewport(0, 0, 1024, 512);
+    glViewport(0, 0, windowWidth, windowHeight);
 
 
     // 1. Create vertex shader object and get reference
@@ -97,7 +175,7 @@ int main()
     // 1. Bind the VBO specifying that it's a GL_ARRAY_BUFFER
     // 2. Introduce the vertices into the VBO
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, mapVertices.size() * sizeof(float), mapVertices.data(), GL_STATIC_DRAW);
 
     // 1. Configure the Vertex Attribute so that OpenGL knows how to read the VBO
     // 2. Enable the Vertex Attribute so that OpenGL knows to use it
@@ -112,21 +190,21 @@ int main()
     // 1. Specify background color
     // 2. Clean back buffer and assign new color
     // 3. Swap back buffer with front buffer
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     glfwSwapBuffers(window);
 
     // Loop for while window is open
     while (!glfwWindowShouldClose(window))
     {
-        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+        glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
         // Tell OpenGL which shader program we want to use
         glUseProgram(shaderProgram);
         // Bind the VAO so OpenGL knows to use it
         glBindVertexArray(VAO);
         // Draw the triangle using the GL_TRIANGLES primitive
-        glDrawArrays(GL_TRIANGLES, 0, 3);
+        glDrawArrays(GL_TRIANGLES, 0, mapVertices.size() / 3);
         glfwSwapBuffers(window);
 
         // Process window events
