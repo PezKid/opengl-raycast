@@ -7,9 +7,11 @@ const char* vertexShaderSource = "#version 330 core\n"
 "layout (location = 0) in vec3 aPos;\n"
 "layout (location = 1) in vec3 aColor;\n"
 "out vec3 vertexColor;\n"
+"uniform vec2 playerPos;\n"
 "void main()\n"
 "{\n"
-"   gl_Position = vec4(aPos, 1.0);\n"
+"   vec3 worldPos = aPos + vec3(playerPos, 0.0);\n"
+"   gl_Position = vec4(worldPos, 1.0);\n"
 "   vertexColor = aColor;\n"
 "}\0";
 
@@ -27,8 +29,10 @@ const int windowHeight = 512;
 const int sq = 64; // width and height of each square in the grid
 const int mp = 8; // how many columns and rows are in the square
 
-int px = 256;
-int py = 256;
+float playerX = 256;
+float playerY = 256;
+float speed = 0.5;
+int playerSize = 10;
 
 float pixelToScreenX(int x) // x pixel value to screen value
 {
@@ -95,11 +99,11 @@ std::vector<float> generateMapVertices(const int* mapArray)
                 color.push_back(1.0f);
             } else if (mapAt == 2) {
                 color.push_back(1.0f);
-                color.push_back(0.0f);
-                color.push_back(0.0f);
+                color.push_back(0.4f);
+                color.push_back(0.4f);
             } else if (mapAt == 3) {
-                color.push_back(0.0f);
-                color.push_back(0.0f);
+                color.push_back(0.4f);
+                color.push_back(0.4f);
                 color.push_back(1.0f);
             } else {
                 color.push_back(0.0f);
@@ -144,6 +148,19 @@ std::vector<uint> generateMapIndices() {
     return mapIndices;
 }
 
+std::vector<float> generatePlayerVertices()
+{
+    float halfWidth = (float)playerSize / windowWidth;
+    float halfHeight = (float)playerSize / windowHeight;
+
+    std::vector<float> color = {1.0f, 0.5f, 0.5f};
+
+    float lX = -halfWidth, rX = halfWidth;
+    float bY = -halfHeight, tY = halfHeight;
+
+    return generateRect(lX, rX, bY, tY, color);
+}
+
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     glViewport(0, 0, width, height);
 }
@@ -174,6 +191,16 @@ int main()
 
     std::vector<float> mapVertices = generateMapVertices(mapArray);
     std::vector<uint> mapIndices = generateMapIndices();
+
+    std::vector<float> playerVertices = generatePlayerVertices();
+    std::vector<uint> playerIndices = { // 0 = BL, 1 = BR, 2 = TL, 3 = TR
+        0, // Bottom left vertex & color
+        1, // Bottom right vertex & color
+        2, // Top left vertex & color
+        2, // Top left vertex & color
+        3, // Top right vertex & color
+        1  // Bottom right vertex & color
+    };
 
     // Declare GLFW window with params (width, height, title, fullscreen y/n, and irrelevant)
     GLFWwindow* window = glfwCreateWindow(windowWidth, windowHeight, "Raycast", nullptr, nullptr);
@@ -227,7 +254,7 @@ int main()
     // Create reference containers for the Vertex Array Object and the Vertex Buffer Object
     GLuint mapVAO, mapVBO, mapEBO;
 
-    // Generate the VAO and VBO
+    // Generate the map VAO, VBO, EBO
     glGenVertexArrays(1, &mapVAO);
     glGenBuffers(1, &mapVBO);
     glGenBuffers(1, &mapEBO);
@@ -254,6 +281,36 @@ int main()
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
 
+
+    // Create reference containers for the Vertex Array Object and the Vertex Buffer Object
+    GLuint playerVAO, playerVBO, playerEBO;
+
+    // Generate the map VAO, VBO, EBO
+    glGenVertexArrays(1, &playerVAO);
+    glGenBuffers(1, &playerVBO);
+    glGenBuffers(1, &playerEBO);
+
+    // Make the VAO the current Vertex Array Object by binding it
+    glBindVertexArray(playerVAO);
+
+    // 1. Bind the VBO specifying that it's a GL_ARRAY_BUFFER
+    // 2. Introduce the vertices into the VBO
+    glBindBuffer(GL_ARRAY_BUFFER, playerVBO);
+    glBufferData(GL_ARRAY_BUFFER, playerVertices.size() * sizeof(float), playerVertices.data(), GL_STATIC_DRAW);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, playerEBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, playerIndices.size() * sizeof(unsigned int), playerIndices.data(), GL_STATIC_DRAW);
+
+    // Position attribute (location 0)
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    // Color attribute (location 1)
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+
+
+
     // Bind both the VBO, VAO, and EBO to 0 so we don't accidentally modify them
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
@@ -273,22 +330,41 @@ int main()
         glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        // if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-        //     std::cout << "W";
-        // } else if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-        //     std::cout << "A";
-        // } else if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-        //     std::cout << "S";
-        // } else if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-        //     std::cout << "D";
-        // }
+        if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+            playerY += speed;
+            std::cout << playerX << " " << playerY << std::endl;
+        }
+        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+            playerX -= speed;
+            std::cout << playerX << " " << playerY << std::endl;
+        }
+        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+            playerY -= speed;
+            std::cout << playerX << " " << playerY << std::endl;
+        }
+        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+            playerX += speed;
+            std::cout << playerX << " " << playerY << std::endl;
+        }
 
         // Tell OpenGL which shader program we want to use
         glUseProgram(shaderProgram);
+        GLint playerPosLocation = glGetUniformLocation(shaderProgram, "playerPos");
+
         // Bind the VAO so OpenGL knows to use it
-        glBindVertexArray(mapVAO);
         // Draw the triangle using the GL_TRIANGLES primitive
+        glUniform2f(playerPosLocation, 0.0f, 0.0f);
+        glBindVertexArray(mapVAO);
         glDrawElements(GL_TRIANGLES, mapIndices.size(), GL_UNSIGNED_INT, 0);
+
+        // Bind the VAO so OpenGL knows to use it
+        // Draw the triangle using the GL_TRIANGLES primitive
+        float offX = pixelToScreenX((int)playerX);
+        float offY = pixelToScreenY((int)playerY);
+        glUniform2f(playerPosLocation, offX, offY);
+        glBindVertexArray(playerVAO);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
         glfwSwapBuffers(window);
 
         // Process window events
@@ -299,6 +375,9 @@ int main()
     glDeleteVertexArrays(1, &mapVAO);
     glDeleteBuffers(1, &mapVBO);
     glDeleteBuffers(1, &mapEBO);
+    glDeleteVertexArrays(1, &playerVAO);
+    glDeleteBuffers(1, &playerVBO);
+    glDeleteBuffers(1, &playerEBO);
     glDeleteProgram(shaderProgram);
 
     // Terminate and destroy GLFW before the function ends
