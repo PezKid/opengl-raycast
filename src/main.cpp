@@ -24,8 +24,11 @@ const char* fragmentShaderSource = "#version 330 core\n"
 
 const int windowWidth = 1024;
 const int windowHeight = 512;
-const int sq = 64;
-const int mp = 8;
+const int sq = 64; // width and height of each square in the grid
+const int mp = 8; // how many columns and rows are in the square
+
+int px = 256;
+int py = 256;
 
 float pixelToScreenX(int x) // x pixel value to screen value
 {
@@ -37,16 +40,17 @@ float pixelToScreenY(int y) // y pixel value to screen value
     return 2.0f * static_cast<float>(y) / windowHeight - 1.0f;
 }
 
-std::vector<float> generateSquare(float lX, float rX, float bY, float tY, std::vector<float> color)
+// Returns vertices and colors for a rectangle in order BLV,COL,BRV,COL,TLV,COL,TRV,COL
+std::vector<float> generateRect(float lX, float rX, float bY, float tY, std::vector<float> color)
 {
     std::vector<float> mapVertices;
-    // Bottom left triangle
 
     // Bottom left vertex
     mapVertices.push_back(lX);
     mapVertices.push_back(bY);
     mapVertices.push_back(0.0f);
 
+    // Color
     mapVertices.insert(mapVertices.end(), color.begin(), color.end());
 
     // Bottom right vertex
@@ -54,6 +58,7 @@ std::vector<float> generateSquare(float lX, float rX, float bY, float tY, std::v
     mapVertices.push_back(bY);
     mapVertices.push_back(0.0f);
 
+    // Color
     mapVertices.insert(mapVertices.end(), color.begin(), color.end());
 
     // Top left vertex
@@ -61,15 +66,7 @@ std::vector<float> generateSquare(float lX, float rX, float bY, float tY, std::v
     mapVertices.push_back(tY);
     mapVertices.push_back(0.0f);
 
-    mapVertices.insert(mapVertices.end(), color.begin(), color.end());
-
-    // Top right triangle
-
-    // Top left vertex
-    mapVertices.push_back(lX);
-    mapVertices.push_back(tY);
-    mapVertices.push_back(0.0f);
-
+    // Color
     mapVertices.insert(mapVertices.end(), color.begin(), color.end());
 
     // Top right vertex
@@ -77,13 +74,7 @@ std::vector<float> generateSquare(float lX, float rX, float bY, float tY, std::v
     mapVertices.push_back(tY);
     mapVertices.push_back(0.0f);
 
-    mapVertices.insert(mapVertices.end(), color.begin(), color.end());
-
-    // Bottom right vertex
-    mapVertices.push_back(rX);
-    mapVertices.push_back(bY);
-    mapVertices.push_back(0.0f);
-
+    // Color
     mapVertices.insert(mapVertices.end(), color.begin(), color.end());
 
     return mapVertices;
@@ -123,12 +114,38 @@ std::vector<float> generateMapVertices(const int* mapArray)
             float bY = pixelToScreenY(i * sq + offset);
             float tY = pixelToScreenY((i + 1) * sq - offset);
 
-            std::vector<float> squareVertices = generateSquare(lX, rX, bY, tY, color);
+            std::vector<float> squareVertices = generateRect(lX, rX, bY, tY, color);
             mapVertices.insert(mapVertices.end(), squareVertices.begin(), squareVertices.end());
         }
     }
 
     return mapVertices;
+}
+
+std::vector<uint> generateMapIndices() {
+    std::vector<uint> mapIndices;
+
+    for (uint i = 0; i < mp*mp; i++)
+    {
+        uint offset = i*4;
+        uint indices[6] = { // 0 = BL, 1 = BR, 2 = TL, 3 = TR
+            // Bottom left triangle
+            offset + 0, // Bottom left vertex & color
+            offset + 1, // Bottom right vertex & color
+            offset + 2, // Top left vertex & color
+            // Top right triangle
+            offset + 2, // Top left vertex & color
+            offset + 3, // Top right vertex & color
+            offset + 1  // Bottom right vertex & color
+        };
+        mapIndices.insert(mapIndices.end(), std::begin(indices), std::end(indices));
+    }
+
+    return mapIndices;
+}
+
+void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
+    glViewport(0, 0, width, height);
 }
 
 int main()
@@ -156,6 +173,7 @@ int main()
     };
 
     std::vector<float> mapVertices = generateMapVertices(mapArray);
+    std::vector<uint> mapIndices = generateMapIndices();
 
     // Declare GLFW window with params (width, height, title, fullscreen y/n, and irrelevant)
     GLFWwindow* window = glfwCreateWindow(windowWidth, windowHeight, "Raycast", nullptr, nullptr);
@@ -170,8 +188,10 @@ int main()
     // Load GLAD
     gladLoadGL();
 
-    // Set viewport to the entire window, params ((botL), (topR))
-    glViewport(0, 0, windowWidth, windowHeight);
+    int framebufferWidth, framebufferHeight;
+    glfwGetFramebufferSize(window, &framebufferWidth, &framebufferHeight);
+    glViewport(0, 0, framebufferWidth, framebufferHeight);
+    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
 
     // 1. Create vertex shader object and get reference
@@ -205,19 +225,23 @@ int main()
 
 
     // Create reference containers for the Vertex Array Object and the Vertex Buffer Object
-    GLuint VAO, VBO;
+    GLuint mapVAO, mapVBO, mapEBO;
 
     // Generate the VAO and VBO
-    glGenVertexArrays(1, &VAO);
-    glGenBuffers(1, &VBO);
+    glGenVertexArrays(1, &mapVAO);
+    glGenBuffers(1, &mapVBO);
+    glGenBuffers(1, &mapEBO);
 
     // Make the VAO the current Vertex Array Object by binding it
-    glBindVertexArray(VAO);
+    glBindVertexArray(mapVAO);
 
     // 1. Bind the VBO specifying that it's a GL_ARRAY_BUFFER
     // 2. Introduce the vertices into the VBO
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBindBuffer(GL_ARRAY_BUFFER, mapVBO);
     glBufferData(GL_ARRAY_BUFFER, mapVertices.size() * sizeof(float), mapVertices.data(), GL_STATIC_DRAW);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mapEBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, mapIndices.size() * sizeof(unsigned int), mapIndices.data(), GL_STATIC_DRAW);
 
     // 1. Configure the Vertex Attribute so that OpenGL knows how to read the VBO
     // 2. Enable the Vertex Attribute so that OpenGL knows to use it
@@ -230,9 +254,10 @@ int main()
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
 
-    // Bind both the VBO and VAO to 0 so we don't accidentally modify them
+    // Bind both the VBO, VAO, and EBO to 0 so we don't accidentally modify them
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
 
     // 1. Specify background color
@@ -248,12 +273,22 @@ int main()
         glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
+        // if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+        //     std::cout << "W";
+        // } else if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+        //     std::cout << "A";
+        // } else if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+        //     std::cout << "S";
+        // } else if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+        //     std::cout << "D";
+        // }
+
         // Tell OpenGL which shader program we want to use
         glUseProgram(shaderProgram);
         // Bind the VAO so OpenGL knows to use it
-        glBindVertexArray(VAO);
+        glBindVertexArray(mapVAO);
         // Draw the triangle using the GL_TRIANGLES primitive
-        glDrawArrays(GL_TRIANGLES, 0, mapVertices.size() / 3);
+        glDrawElements(GL_TRIANGLES, mapIndices.size(), GL_UNSIGNED_INT, 0);
         glfwSwapBuffers(window);
 
         // Process window events
@@ -261,8 +296,9 @@ int main()
     }
 
     // Delete objects we've created
-    glDeleteVertexArrays(1, &VAO);
-    glDeleteBuffers(1, &VBO);
+    glDeleteVertexArrays(1, &mapVAO);
+    glDeleteBuffers(1, &mapVBO);
+    glDeleteBuffers(1, &mapEBO);
     glDeleteProgram(shaderProgram);
 
     // Terminate and destroy GLFW before the function ends
