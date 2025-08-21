@@ -1,6 +1,7 @@
 #include <iostream>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
+#include <cmath>
 
 // Vertex shader source code
 const char* vertexShaderSource = "#version 330 core\n"
@@ -29,10 +30,26 @@ const int windowHeight = 512;
 const int sq = 64; // width and height of each square in the grid
 const int mp = 8; // how many columns and rows are in the square
 
+// Map coordinates
+int mapArray[] = {
+    1,1,1,1,1,1,1,1,
+    1,0,0,2,0,0,0,1,
+    1,0,2,2,0,0,0,1,
+    1,0,0,0,0,0,0,1,
+    1,0,0,0,0,3,0,1,
+    1,0,0,0,0,3,0,1,
+    1,0,0,0,0,0,0,1,
+    1,1,1,1,1,1,1,1
+};
+
 float playerX = 256;
 float playerY = 256;
+float rotation = M_PI/2; // rotation in radians
 float speed = 0.5;
+float rotationSpeed = 0.05;
 int playerSize = 10;
+
+const float sqrhf = sqrt(1.0f/2.0f);
 
 float pixelToScreenX(int x) // x pixel value to screen value
 {
@@ -84,7 +101,7 @@ std::vector<float> generateRect(float lX, float rX, float bY, float tY, std::vec
     return mapVertices;
 }
 
-std::vector<float> generateMapVertices(const int* mapArray)
+std::vector<float> generateMapVertices()
 {
     std::vector<float> mapVertices;
 
@@ -165,6 +182,39 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     glViewport(0, 0, width, height);
 }
 
+void movePlayer(float signfb, float signlr) {
+    if (signfb != 0.0f || signlr != 0.0f) {
+        float dx = speed * cos(rotation) * signfb;
+        float dy = speed * sin(rotation) * signfb;
+        int grid_x = int((playerX + 8 * dx) / 64); // collision detection
+        int grid_y = int(mp - (playerY + 8 * dy) / 64);
+        if (mapArray[grid_y * mp + grid_x] != 0) {
+            return;
+        }
+        playerX += dx;
+        playerY += dy;
+
+        dx = speed * cos(rotation + M_PI/2) * signlr;
+        dy = speed * sin(rotation + M_PI/2) * signlr;
+        grid_x = int((playerX + 8 * dx) / 64); // collision detection
+        grid_y = int(mp - (playerY + 8 * dy) / 64);
+        if (mapArray[grid_y * mp + grid_x] != 0) {
+            return;
+        }
+        playerX += dx;
+        playerY += dy;
+    }
+}
+
+void turnPlayer(float dir) {
+    rotation += rotationSpeed * dir;
+    if (rotation < 0) {
+        rotation += 2 * M_PI;
+    } else if (rotation > 2 * M_PI) {
+        rotation -= 2 * M_PI;
+    }
+}
+
 int main()
 {
     // Initialize GLFW
@@ -176,20 +226,7 @@ int main()
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); // CORE contains all the modern functions
 
-
-    // Map coordinates
-    const int mapArray[] = {
-        1,1,1,1,1,1,1,1,
-        1,0,0,2,0,0,0,1,
-        1,0,2,2,0,0,0,1,
-        1,0,0,0,0,0,0,1,
-        1,0,0,0,0,3,0,1,
-        1,0,0,0,0,3,0,1,
-        1,0,0,0,0,0,0,1,
-        1,1,1,1,1,1,1,1
-    };
-
-    std::vector<float> mapVertices = generateMapVertices(mapArray);
+    std::vector<float> mapVertices = generateMapVertices();
     std::vector<uint> mapIndices = generateMapIndices();
 
     std::vector<float> playerVertices = generatePlayerVertices();
@@ -330,21 +367,31 @@ int main()
         glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
+        float signfb = 0;
+        float signlr = 0;
         if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-            playerY += speed;
-            std::cout << playerX << " " << playerY << std::endl;
+            signfb += 1.0f;
         }
         if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-            playerX -= speed;
-            std::cout << playerX << " " << playerY << std::endl;
+            signlr += 1.0f;
         }
         if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-            playerY -= speed;
-            std::cout << playerX << " " << playerY << std::endl;
+            signfb -= 1.0f;
         }
         if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-            playerX += speed;
-            std::cout << playerX << " " << playerY << std::endl;
+            signlr -= 1.0f;
+        }
+        if (signfb != 0 && signlr != 0) {
+            signfb *= sqrhf;
+            signlr *= sqrhf;
+        }
+        movePlayer(signfb, signlr);
+
+        if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
+            turnPlayer(1);
+        }
+        if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
+            turnPlayer(-1);
         }
 
         // Tell OpenGL which shader program we want to use
