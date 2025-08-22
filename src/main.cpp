@@ -1,9 +1,10 @@
+// Standard library and OpenGL includes
 #include <iostream>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <cmath>
 
-// Vertex shader source code
+// Vertex shader source code: handles position and color attributes
 const char* vertexShaderSource = "#version 330 core\n"
 "layout (location = 0) in vec3 aPos;\n"
 "layout (location = 1) in vec3 aColor;\n"
@@ -16,7 +17,7 @@ const char* vertexShaderSource = "#version 330 core\n"
 "   vertexColor = aColor;\n"
 "}\0";
 
-// Fragment shader source code
+// Fragment shader source code: outputs interpolated color
 const char* fragmentShaderSource = "#version 330 core\n"
 "in vec3 vertexColor;\n"
 "out vec4 FragColor;\n"
@@ -25,12 +26,13 @@ const char* fragmentShaderSource = "#version 330 core\n"
 "   FragColor = vec4(vertexColor, 1.0f);\n"
 "}\n\0";
 
+// Window and map configuration
 const int windowWidth = 1024;
 const int windowHeight = 512;
-const int sq = 64; // width and height of each square in the grid
-const int mp = 8; // how many columns and rows are in the square
+const int sq = 64; // Width and height of each square in the grid
+const int mp = 8;  // Number of columns and rows in the map
 
-// Map coordinates
+// Map layout (1=wall, 2/3=special, 0=empty)
 int mapArray[] = {
     1,1,1,1,1,1,1,1,
     1,0,0,2,0,0,0,1,
@@ -42,27 +44,32 @@ int mapArray[] = {
     1,1,1,1,1,1,1,1
 };
 
+
+// Player state
 float playerX = 256;
 float playerY = 256;
-float rotation = M_PI/2 + 0.01; // rotation in radians
-float speed = 0.5;
-float rotationSpeed = 0.03;
-int playerSize = 10;
-int numSlices = 128; // Number of rays
+float rotation = M_PI/2 + 0.01; // Player rotation in radians
+float speed = 0.5;       // Player movement speed
+float rotationSpeed = 0.03; // Player rotation speed
+int playerSize = 10;     // Player square size (for minimap)
+int numSlices = 128;     // Number of rays for raycasting/projection
 
+// Used for diagonal movement normalization
 const float sqrhf = sqrt(1.0f/2.0f);
 
-float pixelToScreenX(int x) // x pixel value to screen value
+// Convert pixel X coordinate to normalized device coordinate (OpenGL)
+float pixelToScreenX(int x)
 {
     return 2.0f * static_cast<float>(x) / windowWidth - 1.0f;
 }
 
-float pixelToScreenY(int y) // y pixel value to screen value
+// Convert pixel Y coordinate to normalized device coordinate (OpenGL)
+float pixelToScreenY(int y)
 {
     return 2.0f * static_cast<float>(y) / windowHeight - 1.0f;
 }
 
-// Returns vertices and colors for a rectangle in order BLV,COL,BRV,COL,TLV,COL,TRV,COL
+// Generate rectangle vertices and colors in order: BL, BR, TL, TR (each with color)
 std::vector<float> generateRect(float lX, float rX, float bY, float tY, std::vector<float> color)
 {
     std::vector<float> mapVertices;
@@ -102,88 +109,32 @@ std::vector<float> generateRect(float lX, float rX, float bY, float tY, std::vec
     return mapVertices;
 }
 
+// Holds both vertex and index data for OpenGL rendering
 struct VerticesIndices
 {
-    std::vector<float> vertices; // For OpenGL rendering
-    std::vector<uint> indices;   // For OpenGL rendering
+    std::vector<float> vertices; // Interleaved vertex attributes (position, color)
+    std::vector<uint> indices;   // Indices for indexed drawing
 };
 
-std::vector<float> generateMapVertices()
-{
-    std::vector<float> mapVertices;
+// Generate all map square vertices (for minimap rendering)
 
-    for (int i = 0; i < mp; i++) {
-        for (int j = 0; j < mp; j++) {
-            int mapAt = mapArray[(mp - 1 - i) * mp + j];
+// Generate all map square indices (for minimap rendering)
 
-            std::vector<float> color;
-            if (mapAt == 1) {
-                color.push_back(1.0f);
-                color.push_back(1.0f);
-                color.push_back(1.0f);
-            } else if (mapAt == 2) {
-                color.push_back(1.0f);
-                color.push_back(0.4f);
-                color.push_back(0.4f);
-            } else if (mapAt == 3) {
-                color.push_back(0.4f);
-                color.push_back(0.4f);
-                color.push_back(1.0f);
-            } else {
-                color.push_back(0.0f);
-                color.push_back(0.0f);
-                color.push_back(0.0f);
-            }
-
-            int offset = 1;
-            // Draw wall square
-            float lX = pixelToScreenX(j * sq + offset);
-            float rX = pixelToScreenX((j + 1) * sq - offset);
-            float bY = pixelToScreenY(i * sq + offset);
-            float tY = pixelToScreenY((i + 1) * sq - offset);
-
-            std::vector<float> squareVertices = generateRect(lX, rX, bY, tY, color);
-            mapVertices.insert(mapVertices.end(), squareVertices.begin(), squareVertices.end());
-        }
-    }
-
-    return mapVertices;
-}
-
-std::vector<uint> generateMapIndices() {
-    std::vector<uint> mapIndices;
-
-    for (uint i = 0; i < mp*mp; i++)
-    {
-        uint offset = i*4;
-        uint indices[6] = { // 0 = BL, 1 = BR, 2 = TL, 3 = TR
-            // Bottom left triangle
-            offset + 0, // Bottom left vertex & color
-            offset + 1, // Bottom right vertex & color
-            offset + 2, // Top left vertex & color
-            // Top right triangle
-            offset + 2, // Top left vertex & color
-            offset + 3, // Top right vertex & color
-            offset + 1  // Bottom right vertex & color
-        };
-        mapIndices.insert(mapIndices.end(), std::begin(indices), std::end(indices));
-    }
-
-    return mapIndices;
-}
-
+// Holds information about a single raycast hit
 struct RayInfo{
     float distance; // Distance to the wall hit
     float angle;    // Angle of the ray
-    int mapHit; // Map info of the wall hit
-    bool hitEW; // True if ray hit east or west wall, False if hit north or south wall
+    int mapHit;     // Map info of the wall hit
+    bool hitEW;     // True if ray hit east/west wall, false if north/south
 };
 
+// Holds both the line vertices for ray visualization and hit info for projection
 struct RayLinesResult {
     std::vector<float> lineVertices; // For OpenGL line drawing
     std::vector<RayInfo> hitInfo;    // Hit info for projection
 };
 
+// Generate the 3D projection rectangles and indices for the right side of the window
 VerticesIndices generateProjectionInfo(std::vector<RayInfo> rayHitInfo)
 {
     VerticesIndices projectionInfo;
@@ -209,12 +160,12 @@ VerticesIndices generateProjectionInfo(std::vector<RayInfo> rayHitInfo)
 
         int tx = 0;
         if (sideV) {
-            // Vertical wall
+            // Vertical wall: texture X coordinate
             tx = int(fmod(ray.distance, 64.0f) / 4.0f);
             if (rot < M_PI)
                 tx = 15 - tx;
         } else {
-            // Horizontal wall
+            // Horizontal wall: texture X coordinate
             tx = int(fmod(ray.distance, 64.0f) / 4.0f);
             if (rot > M_PI / 2.0f && rot < 3 * M_PI / 2.0f)
                 tx = 15 - tx;
@@ -225,7 +176,7 @@ VerticesIndices generateProjectionInfo(std::vector<RayInfo> rayHitInfo)
             float rect_top = start_y + ty * y_slice;
             float rect_bottom = rect_top + y_slice + 1.0f;
 
-            // TODO: Get color for this slice
+            // TODO: Replace with texture/color lookup if needed
             std::vector<float> color;
             if (sideV) color = { 1.0f, 1.0f, 1.0f };
             else color = { 0.8f, 0.8f, 0.8f };
@@ -712,15 +663,17 @@ int main()
         // Process window events
         glfwPollEvents();
 
-        static double lastTime = glfwGetTime();
-        static int nbFrames = 0;
-        nbFrames++;
-        double currentTime = glfwGetTime();
-        if (currentTime - lastTime >= 1.0) {
-            std::cout << "FPS: " << nbFrames << std::endl;
-            nbFrames = 0;
-            lastTime += 1.0;
-        }
+        // // Print FPS
+        //
+        // static double lastTime = glfwGetTime();
+        // static int nbFrames = 0;
+        // nbFrames++;
+        // double currentTime = glfwGetTime();
+        // if (currentTime - lastTime >= 1.0) {
+        //     std::cout << "FPS: " << nbFrames << std::endl;
+        //     nbFrames = 0;
+        //     lastTime += 1.0;
+        // }
     }
 
     // Delete objects we've created
