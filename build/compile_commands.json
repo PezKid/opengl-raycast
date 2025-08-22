@@ -1,0 +1,14 @@
+[
+{
+  "directory": "/Users/rylandalpez/Documents/repos/Personal Projects/opengl-raycast/build",
+  "command": "/usr/bin/clang  -I\"/Users/rylandalpez/Documents/repos/Personal Projects/opengl-raycast/include\" -I/opt/homebrew/include -g -arch arm64 -o CMakeFiles/glad.dir/src/glad.c.o -c \"/Users/rylandalpez/Documents/repos/Personal Projects/opengl-raycast/src/glad.c\"",
+  "file": "/Users/rylandalpez/Documents/repos/Personal Projects/opengl-raycast/src/glad.c",
+  "output": "CMakeFiles/glad.dir/src/glad.c.o"
+},
+{
+  "directory": "/Users/rylandalpez/Documents/repos/Personal Projects/opengl-raycast/build",
+  "command": "/usr/bin/clang++  -I/opt/homebrew/include -I\"/Users/rylandalpez/Documents/repos/Personal Projects/opengl-raycast/include\" -g -std=gnu++17 -arch arm64 -o CMakeFiles/opengl_raycast.dir/src/main.cpp.o -c \"/Users/rylandalpez/Documents/repos/Personal Projects/opengl-raycast/src/main.cpp\"",
+  "file": "/Users/rylandalpez/Documents/repos/Personal Projects/opengl-raycast/src/main.cpp",
+  "output": "CMakeFiles/opengl_raycast.dir/src/main.cpp.o"
+}
+]
